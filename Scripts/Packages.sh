@@ -72,9 +72,11 @@ UPDATE_PACKAGE "v2ray-geodata" "sbwml/v2ray-geodata" "master"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 UPDATE_PACKAGE "luci-app-pushbot" "zzsj0928/luci-app-pushbot" "master"
 UPDATE_PACKAGE "luci-app-easytier" "EasyTier/luci-app-easytier" "main"
-UPDATE_PACKAGE "easytier" "EasyTier/luci-app-easytier" "main"
 UPDATE_PACKAGE "openlist2" "sbwml/luci-app-openlist2" "main"
 #UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
+
+# 引入本地仓库专属定制包（luci-app-ecm 高通硬件加速控制面板）
+[ -d "$GITHUB_WORKSPACE/package/luci-app-ecm" ] && cp -rf "$GITHUB_WORKSPACE/package/luci-app-ecm" ./
 
 #更新软件包版本
 UPDATE_VERSION() {
@@ -129,3 +131,9 @@ UPDATE_VERSION() {
 # #删除官方的默认插件，避免与最新拉取的源码冲突
 rm -rf ../feeds/luci/applications/luci-app-{passwall*,mosdns,dockerman,dae*,bypass*,nikki}
 rm -rf ../feeds/packages/net/{dae*,mosdns,v2ray-geodata,nikki,mihomo*}
+
+#引入私有扩展脚本（若存在 Scripts/PRIVATE.sh）
+if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
+	echo "Applying private script: Scripts/PRIVATE.sh"
+	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
+fi

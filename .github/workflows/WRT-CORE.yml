@@ -147,8 +147,8 @@ jobs:
         run: |
          cd ./wrt
          mkdir -p files/usr/share/v2ray
-         wget -O files/usr/share/v2ray/geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-         wget -O files/usr/share/v2ray/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+         wget -t 3 -T 15 -O files/usr/share/v2ray/geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
+         wget -t 3 -T 15 -O files/usr/share/v2ray/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
          ls -l files/usr/share/v2ray
 
       - name: Check Scripts
