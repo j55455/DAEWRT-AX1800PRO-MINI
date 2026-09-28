@@ -188,6 +188,7 @@ if [ -f /etc/config/nikki ]; then
 	# 保持 Nikki IPv6 全部开启（mixin/dns/proxy 层均不关闭）
 	uci -q set nikki.mixin.ipv6='1'
 	uci -q set nikki.mixin.dns_ipv6='1'
+	uci -q set nikki.mixin.dns_mode='redir-host'
 	uci -q set nikki.proxy.ipv6_proxy='1'
 	uci -q set nikki.proxy.ipv6_dns_hijack='1'
 	uci -q commit nikki
