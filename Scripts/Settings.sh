@@ -33,8 +33,9 @@ sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
 #修改默认主机名
 sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
 
-#修复软件源（替换为南京大学开源镜像源）
-sed -i 's/mirrors.vsean.net\/openwrt/mirror.nju.edu.cn\/immortalwrt/g' ./package/emortal/default-settings/files/99-default-settings-chinese
+#修复软件源（替换为南京大学开源镜像源；加文件守卫避免上游改名导致 sed 报错）
+DEFAULT_SETTINGS_CHN="./package/emortal/default-settings/files/99-default-settings-chinese"
+[ -f "$DEFAULT_SETTINGS_CHN" ] && sed -i 's/mirrors.vsean.net\/openwrt/mirror.nju.edu.cn\/immortalwrt/g' "$DEFAULT_SETTINGS_CHN"
 
 #配置文件修改
 echo "CONFIG_PACKAGE_luci=y" >> ./.config

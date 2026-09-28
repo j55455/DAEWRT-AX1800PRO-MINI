@@ -64,7 +64,7 @@ UPDATE_PACKAGE() {
 # UPDATE_PACKAGE "qmodem" "FUjr/QModem" "main"
 UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
 UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
-UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "luci-app-timewol luci-app-wolplus"
+UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "luci-app-wolultra"
 # UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 UPDATE_PACKAGE "luci-app-tailscale" "asvow/luci-app-tailscale" "main"
 UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5"
@@ -131,6 +131,9 @@ UPDATE_VERSION() {
 # #删除官方的默认插件，避免与最新拉取的源码冲突
 rm -rf ../feeds/luci/applications/luci-app-{passwall*,mosdns,dockerman,dae*,bypass*,nikki}
 rm -rf ../feeds/packages/net/{dae*,mosdns,v2ray-geodata,nikki,mihomo*}
+# 同步清理 feeds install 生成的软链接（../package/feeds/），杜绝与克隆的 sbwml/nikki 源码 duplicate package
+rm -rf ../package/feeds/packages/{mosdns,v2ray-geodata,nikki,mihomo*} 2>/dev/null
+rm -rf ../package/feeds/luci/luci-app-{mosdns,nikki} 2>/dev/null
 
 #引入私有扩展脚本（若存在 Scripts/PRIVATE.sh）
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
