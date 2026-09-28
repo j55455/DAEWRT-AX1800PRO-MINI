@@ -47,6 +47,11 @@ msftncsi.com
 
 # ===== 6. Steam 满速游戏下载 CDN (仅保留纯下载加速域名，steamserver.net 走代理) =====
 steamcontent.com
+
+# ===== 7. IPv6 连通性测试与测速服务 (完整放行 A/AAAA，保障 test-ipv6.com 测出满分) =====
+domain:test-ipv6.com
+domain:ipv6-test.com
+domain:ipw.cn
 steamusercontent.com
 steamcdn-a.akamaihd.net
 
