@@ -243,32 +243,53 @@ uci -q commit dhcp
 # 12. 确保 MosDNS 开机自启服务软链接就绪，杜绝冷启动 5335 端口断流
 [ -x /etc/init.d/mosdns ] && /etc/init.d/mosdns enable
 
-# 13. IPv6 中继（relay）：二级路由 + 上级无 PD 委派场景的正解
-#     实测上级（电信光猫）仅 SLAAC 下发 /64、不下发 IA_PD 前缀委派，
-#     故 NAT66 因 source-specific 默认路由导致 ULA 源 unreachable 不可行；
-#     改用 relay 中继：LAN 客户端直接在上级 /64 里 SLAAC 获取真公网 IPv6，
-#     无 NAT、源地址匹配上级默认路由，测试网站显示完整 IPv6 连接。
-# LAN 侧三项全部中继
-uci -q set dhcp.lan.ra='relay'
-uci -q set dhcp.lan.dhcpv6='relay'
-uci -q set dhcp.lan.ndp='relay'
+# 13. IPv6 NAT66 + 策略路由（实测有效方案）
+#     拓扑：光猫 → 酷派(拿 PD 前缀 240e:..:d912::/64，NAT66关闭，原生SLAAC下发)
+#           → 中兴(无线桥接) → 软路由(网线接中兴LAN) → 客户端
+#     中兴是无线桥接，对下游路由器的 NDP proxy 透传不可靠，故 relay 中继不通；
+#     解法：软路由 NAT66——客户端用内网 ULA(fdae)，出网时 SNAT 成软路由 WAN 的
+#     公网地址(中兴认识)，不依赖中兴透传 NDP。实测客户端 ping 公网 v6 通 10ms。
+#     关键：电信默认路由是 source-specific(::/0 from 240e../64)，ULA源查不到默认路由，
+#     故用策略路由(ip rule from ULA lookup 100)导流，见 99-nat66-policy hotplug。
+uci -q set network.globals.ula_prefix='fdae:1800:1::/48'
+uci -q set network.lan.ip6assign='64'
+uci -q delete network.lan.ip6ifaceid 2>/dev/null
+# LAN 以 server 模式下发 fdae ULA + 强制通告默认路由
+uci -q set dhcp.lan.ra='server'
+uci -q set dhcp.lan.dhcpv6='server'
+uci -q set dhcp.lan.ra_default='1'
+uci -q delete dhcp.lan.ndp 2>/dev/null
 uci -q delete dhcp.lan.ra_flags 2>/dev/null
-# 新建 wan6 作为 relay master（上游接口）
-uci -q set dhcp.wan6='dhcp'
-uci -q set dhcp.wan6.interface='wan6'
-uci -q set dhcp.wan6.ignore='1'
-uci -q set dhcp.wan6.master='1'
-uci -q set dhcp.wan6.ra='relay'
-uci -q set dhcp.wan6.dhcpv6='relay'
-uci -q set dhcp.wan6.ndp='relay'
+uci -q delete dhcp.wan6 2>/dev/null
 uci -q commit dhcp
-# relay 模式下客户端用真公网地址，无需 NAT66，关闭 masq6 避免干扰
-uci -q set firewall.@zone[1].masq6='0'
+# 开启 IPv6 masquerade（NAT66），把客户端 ULA 源 SNAT 成 WAN 公网地址
+uci -q set firewall.@zone[1].masq6='1'
 
 uci -q commit network
 uci -q commit firewall
 uci -q commit wireless
 exit 0
+EOF
+chmod +x ./package/base-files/files/etc/uci-defaults/99-jdc-defaults
+echo "AX1800 Pro 99-jdc-defaults injected!"
+
+# 预置 NAT66 策略路由热插拔脚本：解决电信 source-specific 默认路由导致 ULA 源无法出网
+# wan/wan6 up 时，动态获取上级网关 LL，为 ULA 源建立独立路由表 100 的默认路由
+mkdir -p ./package/base-files/files/etc/hotplug.d/iface
+cat > ./package/base-files/files/etc/hotplug.d/iface/99-nat66-policy << 'EOF'
+#!/bin/sh
+[ "$ACTION" = "ifup" -o "$ACTION" = "ifupdate" ] || exit 0
+case "$INTERFACE" in wan|wan6) ;; *) exit 0 ;; esac
+ULA="fdae:1800:1::/48"
+GW=$(ip -6 route show default dev wan 2>/dev/null | grep -oE "fe80::[0-9a-f:]+" | head -1)
+[ -n "$GW" ] || exit 0
+ip -6 rule del from $ULA lookup 100 2>/dev/null
+ip -6 rule add from $ULA lookup 100 pref 500
+ip -6 route replace default via $GW dev wan table 100
+logger -t nat66 "policy route applied: $ULA via $GW"
+EOF
+chmod +x ./package/base-files/files/etc/hotplug.d/iface/99-nat66-policy
+echo "AX1800 Pro NAT66 policy routing hotplug injected!"
 EOF
 chmod +x ./package/base-files/files/etc/uci-defaults/99-jdc-defaults
 echo "AX1800 Pro 99-jdc-defaults injected!"
