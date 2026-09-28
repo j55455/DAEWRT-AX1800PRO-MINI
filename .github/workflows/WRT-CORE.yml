@@ -66,7 +66,7 @@ env:
 jobs:
   core:
     name: ${{inputs.WRT_SOURCE}}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: Install BC
         env:
@@ -100,13 +100,26 @@ jobs:
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
           sudo -E apt -yqq install dos2unix libfuse-dev
-          sudo bash $GITHUB_WORKSPACE/Scripts/init_build_environment.sh
+          dos2unix "$GITHUB_WORKSPACE/Scripts/init_build_environment.sh"
+          sudo bash "$GITHUB_WORKSPACE/Scripts/init_build_environment.sh"
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
+          if command -v go >/dev/null 2>&1; then
+            echo "GO_INSTALLED=true" >> "$GITHUB_ENV"
+          else
+            echo "GO_INSTALLED=false" >> "$GITHUB_ENV"
+          fi
 #          sudo chown $USER:$GROUPS $GITHUB_WORKSPACE
 #          sudo mkdir -p /mnt/build_wrt
 #          sudo chown $USER:$USER /mnt/build_wrt
 #          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
+
+      - name: Setup Go
+        if: env.GO_INSTALLED != 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+      - run: go version
 
       - name: Initialization Values
         run: |
@@ -130,17 +143,13 @@ jobs:
           cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
 
 
-#############################测试代码####
-      - name: Update Dae/Daed rules
+      - name: Update MosDNS Rules
         run: |
          cd ./wrt
-         mkdir -p files/usr/share/dae
-         wget -O files/usr/share/dae/geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-         wget -O files/usr/share/dae/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-         cd files/usr/share
-         ln -s dae daed
-         ls -l
-#############################测试代码####
+         mkdir -p files/usr/share/v2ray
+         wget -O files/usr/share/v2ray/geoip.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
+         wget -O files/usr/share/v2ray/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+         ls -l files/usr/share/v2ray
 
       - name: Check Scripts
         run: |
@@ -155,6 +164,7 @@ jobs:
           key: ${{ env.WRT_ARCH }}-${{ hashFiles('**/repo_flag') }}-${{ env.WRT_DATE }}
           restore-keys: |
             ${{ env.WRT_ARCH }}-${{ hashFiles('**/repo_flag') }}-
+            ${{ env.WRT_ARCH }}-
 
       - name: Refresh the cache
         run: |
@@ -197,24 +207,6 @@ jobs:
           cd ./wrt/
 
           make download -j$(nproc)
-
-#############################测试代码####
-          
-      - name: Update Dae Core/Config
-        run: |
-          cd ./wrt/
-          wget -O dae.zip https://github.com/daeuniverse/dae/releases/download/v2.0.0/dae-linux-arm64.zip
-          unzip -j dae.zip dae-linux-arm64
-          mkdir -p files/usr/bin
-          mv dae-linux-arm64 files/usr/bin/dae
-          chmod +x files/usr/bin/dae
-          rm -f dae.zip
-                    
-          #chmod 600 build_dir/target-*/root-*/etc/dae/config.dae
-          #ls -l build_dir/target-*/root-*/etc/dae/config.dae
-          
-          
-#############################测试代码####    
 
       - name: Compile Firmware
         if: env.WRT_TEST != 'true'
@@ -278,7 +270,7 @@ jobs:
           body: |
             京东云亚瑟AX1800pro专属固件包
             代码来自Davidtall、VIKINGYFY
-            适度精简，确保最大性能发挥，开启内核eBPF，Dae吃鹅优选，建议硬改1GB内存的使用
+            适度精简，确保最大性能发挥，集成 MosDNS + Nikki 透明代理与 DNS 分流组合
             刷机前请更换分区表和uboot,参考链接: https://www.right.com.cn/forum/thread-8402269-1-1.html            
             全系带开源硬件加速。
 

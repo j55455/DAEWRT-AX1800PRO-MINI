@@ -20,14 +20,16 @@ CONFIG_DEBUG_INFO_BTF=y
 CONFIG_KPROBE_EVENTS=y
 CONFIG_BPF_EVENTS=y
 
+CONFIG_NET_SCH_BPF=y
 CONFIG_SCHED_CLASS_EXT=y
 CONFIG_PROBE_EVENTS_BTF_ARGS=y
-CONFIG_IMX_SCMI_MISC_DRV=y
+CONFIG_IMX_SCMI_MISC_DRV=n
 CONFIG_ARM64_CONTPTE=y
-CONFIG_TRANSPARENT_HUGEPAGE=y
-CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS=y
-# CONFIG_TRANSPARENT_HUGEPAGE_MADVISE is not set
-# CONFIG_TRANSPARENT_HUGEPAGE_NEVER is not set
+
+CONFIG_PERSISTENT_HUGE_ZERO_FOLIO=n
+CONFIG_NO_PAGE_MAPCOUNT=n
+CONFIG_ARM64_BRBE=y
+CONFIG_NF_CONNTRACK_DSCPREMARK_EXT=y
 EOF
     echo "cat_kernel_config to $1 done"
   fi
@@ -48,6 +50,11 @@ CONFIG_KERNEL_BPF_EVENTS=y
 CONFIG_BPF_TOOLCHAIN_HOST=y
 CONFIG_KERNEL_XDP_SOCKETS=y
 CONFIG_PACKAGE_kmod-xdp-sockets-diag=y
+
+CONFIG_KERNEL_TRANSPARENT_HUGEPAGE=y
+# CONFIG_KERNEL_TRANSPARENT_HUGEPAGE_ALWAYS is not set
+CONFIG_KERNEL_TRANSPARENT_HUGEPAGE_MADVISE=y
+# CONFIG_KERNEL_TRANSPARENT_HUGEPAGE_NEVER is not set
 EOF
 }
 
@@ -80,9 +87,6 @@ fi
 function set_nss_driver() {
   cat >> $1 <<EOF
 #NSS驱动相关
-CONFIG_NSS_FIRMWARE_VERSION_11_4=n
-# CONFIG_NSS_FIRMWARE_VERSION_12_5 is not set
-CONFIG_NSS_FIRMWARE_VERSION_12_2=y
 CONFIG_PACKAGE_kmod-qca-nss-dp=y
 CONFIG_PACKAGE_kmod-qca-nss-drv=y
 CONFIG_PACKAGE_kmod-qca-nss-drv-bridge-mgr=y
@@ -104,10 +108,11 @@ function kernel_version() {
 function remove_wifi() {
   local target=$1
   #去除依赖
-  sed -i 's/\(ath11k-firmware-[^ ]*\|ipq-wifi-[^ ]*\|kmod-ath11k-[^ ]*\)//g' ./target/linux/qualcommax/Makefile
-  sed -i 's/\(ath11k-firmware-[^ ]*\|ipq-wifi-[^ ]*\|kmod-ath11k-[^ ]*\)//g' ./target/linux/qualcommax/${target}/target.mk
-  sed -i 's/\(ath11k-firmware-[^ ]*\|ipq-wifi-[^ ]*\|kmod-ath11k-[^ ]*\)//g' ./target/linux/qualcommax/image/${target}.mk
-  sed -i 's/\(ath10k-firmware-[^ ]*\|kmod-ath10k [^ ]*\|kmod-ath10k-[^ ]*\)//g' ./target/linux/qualcommax/image/${target}.mk
+  local wifi_pkg_pattern='wpad-[^ ]*|hostapd-[^ ]*|kmod-ath|kmod-ath10k|kmod-ath10k-[^ ]*|kmod-ath11k|kmod-ath11k-[^ ]*|kmod-mac80211|kmod-cfg80211|ath10k-firmware-[^ ]*|ath11k-firmware-[^ ]*|ipq-wifi-[^ ]*'
+  sed -i -E ":again; s/(^|[[:space:]])-?(${wifi_pkg_pattern})([[:space:]]|$)/ /g; t again; s/[[:space:]]+$//" ./target/linux/qualcommax/Makefile
+  sed -i -E ":again; s/(^|[[:space:]])-?(${wifi_pkg_pattern})([[:space:]]|$)/ /g; t again; s/[[:space:]]+$//" ./target/linux/qualcommax/${target}/target.mk
+  sed -i -E ":again; s/(^|[[:space:]])-?(${wifi_pkg_pattern})([[:space:]]|$)/ /g; t again; s/[[:space:]]+$//" ./target/linux/qualcommax/image/${target}.mk
+  sed -i 's/\bkmod-qca-nss-drv-wifi-meshmgr\b//g' ./target/linux/qualcommax/Makefile
   #删除无线组件
   rm -rf package/network/services/hostapd
   rm -rf package/firmware/ipq-wifi
@@ -116,11 +121,14 @@ function remove_wifi() {
 function set_kernel_size() {
   #修改jdc ax1800 pro 的内核大小为12M
   image_file='./target/linux/qualcommax/image/ipq60xx.mk'
+  sed -i "/^define Device\/emmc-common/,/^endef/ s/KERNEL_SIZE := 6144k/KERNEL_SIZE := 12288k/" $image_file
+  sed -i "/^define Device\/nand-common/,/^endef/ s/^endef/\tKERNEL_SIZE := 8192k\nendef/" $image_file
   sed -i "/^define Device\/jdcloud_re-ss-01/,/^endef/ { /KERNEL_SIZE := 6144k/s//KERNEL_SIZE := 12288k/ }" $image_file
   sed -i "/^define Device\/jdcloud_re-cs-02/,/^endef/ { /KERNEL_SIZE := 6144k/s//KERNEL_SIZE := 12288k/ }" $image_file
   sed -i "/^define Device\/jdcloud_re-cs-07/,/^endef/ { /KERNEL_SIZE := 6144k/s//KERNEL_SIZE := 12288k/ }" $image_file
-  sed -i "/^define Device\/redmi_ax5-jdcloud/,/^endef/ { /KERNEL_SIZE := 6144k/s//KERNEL_SIZE := 12288k/ }" $image_file
+  sed -i "/^define Device\/link_nn6000-common/,/^endef/ { /KERNEL_SIZE := 6144k/s//KERNEL_SIZE := 12288k/ }" $image_file
   sed -i "/^define Device\/linksys_mr/,/^endef/ { /KERNEL_SIZE := 8192k/s//KERNEL_SIZE := 12288k/ }" $image_file
+  sed -i "/^define Device\/linksys_mr7350/,/^endef/ s/^endef/\tIMAGE_SIZE := 12288k\nendef/" $image_file
 }
 #开启内存回收补丁
 function enable_skb_recycler() {

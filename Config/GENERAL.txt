@@ -1,6 +1,17 @@
 #防堆叠
 
-CONFIG_PACKAGE_luci-app-dae=y
+# MosDNS + Nikki
+CONFIG_PACKAGE_luci-app-mosdns=y
+CONFIG_PACKAGE_mosdns=y
+CONFIG_PACKAGE_luci-i18n-mosdns-zh-cn=y
+CONFIG_PACKAGE_v2ray-geoip=y
+CONFIG_PACKAGE_v2ray-geosite=y
+CONFIG_PACKAGE_luci-app-nikki=y
+CONFIG_PACKAGE_nikki=y
+CONFIG_PACKAGE_mihomo-meta=y
+CONFIG_PACKAGE_luci-i18n-nikki-zh_Hans=y
+CONFIG_PACKAGE_kmod-dummy=y
+CONFIG_PACKAGE_yq=y
 CONFIG_PACKAGE_luci-app-samba4=y
 CONFIG_PACKAGE_luci-app-openlist2=y
 CONFIG_PACKAGE_luci-app-tailscale=y
