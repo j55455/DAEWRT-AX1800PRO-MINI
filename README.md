@@ -1,5 +1,5 @@
-# AX1800PRO-MINI
-京东云亚瑟AX1800pro专属固件包  MINI版 (MosDNS + Nikki)
+# AX1800PRO-MINI (qf)
+京东云亚瑟AX1800pro专属固件包  MINI版 (qf / MosDNS + Nikki)
   
   超强精简，使用 mosdns、nikki、samba4、openlist2、tailscale。
 
