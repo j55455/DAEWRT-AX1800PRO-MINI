@@ -1,0 +1,79 @@
+# MosDNS Rules - 开屏广告与主流移动端广告联盟专项拦截库
+# 格式: domain:域名 (匹配该域名及其所有子域名)
+
+# ===== 1. 腾讯优量汇 (广点通) 开屏与插屏广告 =====
+domain:gdt.qq.com
+domain:mi.gdt.qq.com
+domain:t.gdt.qq.com
+domain:win.gdt.qq.com
+domain:v2.gdt.qq.com
+domain:qzs.gdt.qq.com
+domain:pgdt.gtimg.cn
+domain:adsmind.gdtimg.com
+domain:adsmind.ugdtimg.com
+domain:sdk.e.qq.com
+
+# ===== 2. 字节跳动穿山甲 (Pangle / CSJ / GroMore) 移动广告联盟 =====
+domain:pangolin-sdk-toutiao.com
+domain:pangolin-sdk-toutiao-b.com
+domain:pangolin-sdk-toutiao1.com
+domain:pangolin-sdk-toutiao2.com
+domain:pangolin.snssdk.com
+domain:pangle.cn
+domain:pglstatp-toutiao.com
+domain:toblog.ctobsnssdk.com
+domain:ad.toutiao.com
+domain:gromore.pangolin-sdk-toutiao.com
+
+# ===== 3. 阿里妈妈 / Tanx 移动广告联盟 =====
+domain:alimama.com
+domain:tanx.com
+domain:alimama.cn
+domain:tanx.cn
+
+# ===== 4. 快手联盟 (AdKwai) 开屏广告 =====
+domain:adkwai.com
+domain:e.kuaishou.com
+domain:ad.kuaishou.com
+
+# ===== 5. 百度百青藤 (MobADS) 移动广告联盟 =====
+domain:mobads.baidu.com
+domain:mobads-logs.baidu.com
+domain:cpu.baidu.com
+domain:cpro.baidu.com
+
+# ===== 6. 手机厂商系统级开屏与联盟广告 (小米 / OPPO / 华为 / VIVO) =====
+domain:ad.xiaomi.com
+domain:ad1.xiaomi.com
+domain:ad.mi.com
+domain:data.mistat.xiaomi.com
+domain:tracking.miui.com
+domain:ads.heytap.com
+domain:adx.heytap.com
+domain:api.ad.heytap.com
+domain:bdapi.ads.heytap.com
+domain:adsfs.heytapimage.com
+domain:ads.huawei.com
+domain:adx.huawei.com
+domain:ad.vivo.com.cn
+domain:adlog.vivo.com.cn
+domain:stsm.vivo.com.cn
+
+# ===== 7. 微博 / 社交应用开屏广告 =====
+domain:biz.weibo.com
+domain:sdkapp.uve.weibo.com
+domain:sdkclick.uve.weibo.com
+
+# ===== 8. 第三方移动广告与推送变现 SDK =====
+domain:aurora-ad.jpush.cn
+domain:adx.jpush.cn
+
+# ===== 9. 主流 HTTPDNS 广告探测与分发调度域 (阻断后迫使 SDK 退回 LocalDNS 拦截) =====
+domain:httpdns.c.cdnhwc.com
+domain:httpdns.volces.com
+domain:httpdns.baidubce.com
+domain:httpdns.pro
+
+
+# ===== 10. B站 PCDN (P2P家宽上传节点) 封杀，强制回落官方腾讯云/阿里云机房 CDN =====
+domain:mcdn.bilivideo.cn

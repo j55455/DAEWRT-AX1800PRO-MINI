@@ -1,0 +1,60 @@
+# ==============================================================================
+# 青锋专属 · MosDNS 强制国内直连白名单 (精准优化版)
+# 放入此处的域名走国内阿里 DoH 极速解析，彻底避免死锁并保证国内 CDN 直连速度。
+# 已精准剔除 steamserver.net 与 Apple 泛域名，防止海外服务与代理分流割裂。
+# ==============================================================================
+
+# ===== 1. 你的机场订阅与节点服务器域名 (彻底解开启动与节点解析死锁) =====
+djjsvip.cfd
+c8217-b2a.h1.49d2.5e11.613.b297.djjsvip.cfd
+c8217-b2a.h2.49d2.dje11.1.b297.djjsvip.cfd
+mitce.net
+app.mitce.net
+link-t7.com
+dexlos.com
+yfjcs.com
+yfjc.sbs
+djwstlsweb.top
+
+# ===== 2. 腾讯游戏核心调度域 (保证王者荣耀/LOL进房间秒进) =====
+pvp.qq.com
+tdnsv6.com
+
+# ===== 3. 国内网络连通性检测与公共接口 =====
+connect.rom.miui.com
+connectivitycheck.platform.hicloud.com
+connectivitycheck.android.com
+wifi.vivo.com.cn
+captive.apple.com
+hotspot.cisco.com
+networkcheck.kde.org
+
+# ===== 4. 苹果国内满速 CDN (精准域名，避免泛域包含导致 Apple TV+/TestFlight 异常) =====
+aaplimg.com
+mzstatic.com
+cdn-apple.com
+icloud.com.cn
+itunes.apple.com
+apps.apple.com
+mesu.apple.com
+swcdn.apple.com
+
+# ===== 5. 微软系统更新与应用商店满速下载 CDN =====
+windowsupdate.com
+delivery.mp.microsoft.com
+msftconnecttest.com
+msftncsi.com
+
+# ===== 6. Steam 满速游戏下载 CDN (仅保留纯下载加速域名，steamserver.net 走代理) =====
+steamcontent.com
+steamusercontent.com
+steamcdn-a.akamaihd.net
+
+# ===== B站流媒体核心 CDN 域名 (豁免 300s TTL 钳位，尊重官方 30s 调度) =====
+bilivideo.com
+bilivideo.cn
+bilibili.com
+hdslb.com
+biliapi.com
+biliapi.net
+szbdyd.com

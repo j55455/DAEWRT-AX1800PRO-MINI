@@ -157,6 +157,12 @@ jobs:
          wget -t 3 -T 15 -O files/usr/share/v2ray/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
          ls -l files/usr/share/v2ray
 
+         # 将仓库 files/ 目录中的预置配置文件（MosDNS 规则/配置等）合并写入 rootfs
+         if [ -d "$GITHUB_WORKSPACE/files" ]; then
+           cp -rf "$GITHUB_WORKSPACE/files/." files/
+           echo "Custom files/ merged into rootfs"
+         fi
+
       - name: Check Scripts
         run: |
           find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;

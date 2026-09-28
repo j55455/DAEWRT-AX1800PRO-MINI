@@ -1,0 +1,6 @@
+# 腾讯游戏专线域名（走 DNSPod DoH 加密解析）
+# 背景: pvp.qq.com 经阿里 DoH 出口查询时, 腾讯 tdnsv6 调度域返回的结果无 A 记录
+# 特判走 DNSPod(腾讯自家)后解析正常且获得最优节点调度
+domain:pvp.qq.com
+# 腾讯调度域兜底(部分客户端可能直接查询)
+domain:tdnsv6.com
