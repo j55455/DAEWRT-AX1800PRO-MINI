@@ -243,9 +243,27 @@ uci -q commit dhcp
 # 12. 确保 MosDNS 开机自启服务软链接就绪，杜绝冷启动 5335 端口断流
 [ -x /etc/init.d/mosdns ] && /etc/init.d/mosdns enable
 
-# 13. 启用 IPv6 NAT66 masquerade（双路由场景穿透：上级路由→AX1800 Pro→客户端）
-#     无论上级路由是否支持 DHCPv6-PD，均可通过 NAT66 让客户端正常使用 IPv6
-uci -q set firewall.@zone[1].masq6='1'
+# 13. IPv6 中继（relay）：二级路由 + 上级无 PD 委派场景的正解
+#     实测上级（电信光猫）仅 SLAAC 下发 /64、不下发 IA_PD 前缀委派，
+#     故 NAT66 因 source-specific 默认路由导致 ULA 源 unreachable 不可行；
+#     改用 relay 中继：LAN 客户端直接在上级 /64 里 SLAAC 获取真公网 IPv6，
+#     无 NAT、源地址匹配上级默认路由，测试网站显示完整 IPv6 连接。
+# LAN 侧三项全部中继
+uci -q set dhcp.lan.ra='relay'
+uci -q set dhcp.lan.dhcpv6='relay'
+uci -q set dhcp.lan.ndp='relay'
+uci -q delete dhcp.lan.ra_flags 2>/dev/null
+# 新建 wan6 作为 relay master（上游接口）
+uci -q set dhcp.wan6='dhcp'
+uci -q set dhcp.wan6.interface='wan6'
+uci -q set dhcp.wan6.ignore='1'
+uci -q set dhcp.wan6.master='1'
+uci -q set dhcp.wan6.ra='relay'
+uci -q set dhcp.wan6.dhcpv6='relay'
+uci -q set dhcp.wan6.ndp='relay'
+uci -q commit dhcp
+# relay 模式下客户端用真公网地址，无需 NAT66，关闭 masq6 避免干扰
+uci -q set firewall.@zone[1].masq6='0'
 
 uci -q commit network
 uci -q commit firewall
