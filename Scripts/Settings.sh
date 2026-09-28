@@ -106,6 +106,11 @@ net.netfilter.nf_conntrack_checksum = 0
 # 跨接口 ARP 隔离，防止多网段 ARP 污染
 net.ipv4.conf.all.arp_ignore = 1
 net.ipv4.conf.default.arp_ignore = 1
+# 关闭 IPv6 自动配置与 RA 接收（配合 uci 层面彻底禁用 IPv6，杜绝 WAN 被动获取 v6）
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.default.accept_ra = 0
+net.ipv6.conf.all.autoconf = 0
+net.ipv6.conf.default.autoconf = 0
 # 内核 Panic 3 秒后自动硬重启，杜绝死机失联
 kernel.panic = 3
 EOF
@@ -180,10 +185,15 @@ for w in $(uci -q show wireless | grep '=wifi-iface' | cut -d'.' -f2 | cut -d'='
 	uci -q set wireless.${w}.ssid='qf'
 done
 
-# 6. 固化 Nikki 大陆 IP 直连 bypass，彻底杜绝回退到单核 TUN
+# 6. 固化 Nikki 大陆 IP 直连 bypass，彻底杜绝回退到单核 TUN；并关闭 Nikki 全部 IPv6
 if [ -f /etc/config/nikki ]; then
 	uci -q set nikki.proxy.bypass_china_mainland_ip='1'
 	uci -q set nikki.proxy.bypass_china_mainland_ip6='1'
+	# 关闭 Nikki 全部 IPv6（mixin 总开关 / DNS IPv6 / IPv6 代理 / IPv6 DNS 劫持）
+	uci -q set nikki.mixin.ipv6='0'
+	uci -q set nikki.mixin.dns_ipv6='0'
+	uci -q set nikki.proxy.ipv6_proxy='0'
+	uci -q set nikki.proxy.ipv6_dns_hijack='0'
 	uci -q commit nikki
 fi
 
@@ -236,6 +246,25 @@ uci -q commit dhcp
 
 # 12. 确保 MosDNS 开机自启服务软链接就绪，杜绝冷启动 5335 端口断流
 [ -x /etc/init.d/mosdns ] && /etc/init.d/mosdns enable
+
+# 13. 彻底关闭 IPv6（使用场景纯负优化：全局禁用获取/下发/解析/分流；保留内核栈避免程序 [::] 监听异常）
+# WAN 不获取上级 IPv6，删除默认 wan6(DHCPv6) 接口
+uci -q set network.wan.ipv6='0'
+uci -q delete network.wan6 2>/dev/null
+# LAN 不配置、不委派 IPv6
+uci -q set network.lan.ipv6='0'
+uci -q set network.lan.delegate='0'
+# 关闭 DHCPv6 服务器、路由通告 RA 与 NDP
+uci -q set dhcp.lan.dhcpv6='disabled'
+uci -q set dhcp.lan.ra='disabled'
+uci -q set dhcp.lan.ndp='disabled'
+uci -q delete dhcp.lan.ra_flags 2>/dev/null
+# 关闭 odhcpd 主 DHCP 并停用服务
+uci -q set dhcp.odhcpd.maindhcp='0' 2>/dev/null
+# dnsmasq 过滤 AAAA，杜绝返回 IPv6 解析结果
+uci -q set dhcp.@dnsmasq[0].filter_aaaa='1'
+uci -q commit dhcp
+/etc/init.d/odhcpd disable 2>/dev/null
 
 uci -q commit network
 uci -q commit firewall
