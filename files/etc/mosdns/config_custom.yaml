@@ -1,9 +1,17 @@
-﻿log:
+# ==============================================================================
+# 青锋专属 · MosDNS 极简架构 (v5.0 精简版)
+#
+# 核心目标只有三件事：国内外分流 + 精准去广告 + 彻底防泄漏
+# 执行拓扑：统计 -> 硬拦截(广告/PCDN/IPv6/PTR) -> 直连白名单 -> 缓存
+#           -> 国外(防泄漏) -> 国内 -> 未知兜底(远端优先,国内丢非CN)
+# ==============================================================================
+
+log:
   level: warn
   file: "/var/log/mosdns.log"
   size: 1
 
-# API 入口设置（仅本机监听，LuCI 统计页依赖）
+# API 入口（仅本机监听，LuCI 统计页依赖）
 api:
   http: "127.0.0.1:9091"
 
@@ -16,16 +24,16 @@ plugins:
     args:
       capacity: 2000
 
-  # 广告域名（v2fly category-ads-all + anti-AD 合并列表 + 自定义拦截列表 blocklist.txt）
-  # 位于持久目录 /etc/mosdns/rule/，不受 luci GeoData 清理影响
+  # 广告域名库（精简广告库 ads-all + 自定义 blocklist，含 B站 PCDN 封杀）
   - tag: geosite_ads
     type: domain_set
     args:
       files:
         - "/etc/mosdns/rule/ads-all.txt"
         - "/etc/mosdns/rule/blocklist.txt"
+        - "/etc/mosdns/rule/awavenue-ads.txt"
 
-  # 广告白名单（优先级高于广告拦截，可放误杀域名）
+  # 广告白名单（优先级高于广告拦截，放行业务误杀域名）
   - tag: ad_whitelist
     type: domain_set
     args:
@@ -37,55 +45,37 @@ plugins:
     type: domain_set
     args:
       files:
-        - "/var/mosdns/geosite_cn.txt"
+        - "/etc/mosdns/rule/geosite_cn.txt"
 
-  # 白名单（强制国内解析，含 DDNS 域名，可放需要国内 IP 的域名）
+  # 强制国内直连白名单（机场节点域名、腾讯游戏调度、B站核心 CDN，绝不外发）
   - tag: whitelist
     type: domain_set
     args:
       files:
         - "/etc/mosdns/rule/whitelist.txt"
-        - "/etc/mosdns/rule/ddnslist.txt"
 
-  # 国外域名
-  # geosite:geolocation-!cn
+  # 国外域名（geosite:geolocation-!cn）
   - tag: geosite_no_cn
     type: domain_set
     args:
       files:
-        - "/var/mosdns/geosite_geolocation-!cn.txt"
+        - "/etc/mosdns/rule/geosite_no_cn.txt"
 
-  # 灰名单（greylist.txt，强制走远端解析）
-  # 单独定义并在国内判断之前匹配，优先级高于 geosite:cn
-  - tag: greylist
-    type: domain_set
-    args:
-      files:
-        - "/etc/mosdns/rule/greylist.txt"
-
-  # 腾讯游戏专线域名（pvp.qq.com 从阿里 DoH 出口被腾讯调度区别对待导致无 A 记录，
-  # 特判走 DNSPod DoH 加密解析，顺带获得腾讯按来源的最优调度）
-  - tag: tencent_games
-    type: domain_set
-    args:
-      files:
-        - "/etc/mosdns/rule/tencent-games.txt"
-
-  # 国内 IP
+  # 国内 IP（防泄漏兜底判断用）
   - tag: geoip_cn
     type: ip_set
     args:
       files:
-        - "/var/mosdns/geoip_cn.txt"
+        - "/etc/mosdns/rule/geoip_cn.txt"
 
-  # 本地保留地址反查（local-ptr.txt，私网 PTR 不外发）
+  # 本地保留地址反查（私网 PTR 不外发）
   - tag: local_ptr
     type: domain_set
     args:
       files:
         - "/etc/mosdns/rule/local-ptr.txt"
 
-  # 缓存（广告/DDNS/私网 PTR 域名已在主序列跳过缓存）
+  # 乐观缓存（RFC 8767：命中过期缓存秒回，后台异步刷新，防查询风暴）
   - tag: lazy_cache
     type: cache
     args:
@@ -94,9 +84,7 @@ plugins:
       dump_file: "/etc/mosdns/cache.dump"
       dump_interval: 600
 
-  # 转发至国内服务器
-  # 纯 IP DoH 直连，无需 bootstrap；阿里双入口并发取最快
-  # idle_timeout 设为 15 秒；DoH 原生基于 HTTP/2 多路复用，不开启 RFC 7766 TCP 级 pipeline，彻底避免对端静默关闭触发 EOF
+  # 国内上游：阿里双入口 DoH 并发取最快（纯 IP 直连，无需 bootstrap）
   - tag: forward_local
     type: forward
     args:
@@ -109,20 +97,7 @@ plugins:
           addr: "https://223.6.6.6/dns-query"
           idle_timeout: 15
 
-  # 腾讯游戏专线：DNSPod DoH 加密解析（双 Anycast 入口并发容灾，低频精准调度）
-  - tag: forward_tencent
-    type: forward
-    args:
-      concurrent: 2
-      upstreams:
-        - tag: dnspod1
-          addr: "https://120.53.53.53/dns-query"
-          idle_timeout: 30
-        - tag: dnspod2
-          addr: "https://1.12.12.12/dns-query"
-          idle_timeout: 30
-
-  # 国外备用上游：AdGuard DNS 个人版（仅 NextDNS 超时/失败 1200ms 后接管；每个请求仅查询这一家）
+  # 国外备用上游：AdGuard DNS 个人版（仅 NextDNS 超时 800ms 后接管，单发省配额）
   - tag: forward_adguard
     type: forward
     args:
@@ -130,11 +105,10 @@ plugins:
       upstreams:
         - tag: adguard
           addr: "https://d.adguard-dns.com/dns-query/94f14f4c"
-          dial_addr: 94.140.14.14
+          dial_addr: "94.140.14.14"
           idle_timeout: 30
 
-  # 国外主上游：NextDNS（规则更多，作为国外默认解析；每个请求仅查询这一家）
-  # 经路由器实测，路径式 https://dns.nextdns.io/<id> 为官方 DoH 标准端点，稳定可靠
+  # 国外主上游：NextDNS 个人版（定制规则多，作为国外主力，单发省配额）
   - tag: forward_nextdns
     type: forward
     args:
@@ -142,57 +116,49 @@ plugins:
       upstreams:
         - tag: nextdns
           addr: "https://dns.nextdns.io/e3fe39"
-          dial_addr: 45.90.28.186
+          dial_addr: "45.90.30.186"
           idle_timeout: 30
 
-  # 转发至远程服务器（NextDNS 主 + AdGuard 备，单发不双发）
-  # 晚高峰设置 1200ms 阈值，抵抗跨境网络轻微抖动，为高并发探测留足响应时间
+  # 国外解析：NextDNS 主 + AdGuard 备（单发不双发，800ms 阈值抗抖，热态备用防冷启动假死）
   - tag: forward_remote
     type: fallback
     args:
       primary: forward_nextdns
       secondary: forward_adguard
-      threshold: 1200
-      always_standby: false
+      threshold: 800
+      always_standby: true
 
-  # 国内解析
+  # 国内解析序列
   - tag: local_sequence
     type: sequence
     args:
       - exec: $forward_local
 
-  # 国外解析
+  # 国外解析序列（AAAA 已在硬拦截层全局拒答，此处无需重复）
   - tag: remote_sequence
     type: sequence
     args:
       - exec: $forward_remote
 
-  # CNAME 隐匿广告就地阻断序列
-  - tag: cname_block_sequence
+  # 本地硬拦截：IPv6 / TYPE65 / 私网 PTR / 广告（去广告 + 防泄漏基石）
+  - tag: query_is_reject_domain
     type: sequence
     args:
-      - exec: reject 3
-      - exec: accept
-
-  # 有响应终止返回（含 CNAME 隐匿广告拦截与智能 TTL 优化）
-  - tag: has_resp_sequence
-    type: sequence
-    args:
-      # 拦截 CNAME 隐匿广告（上游应答中的 CNAME 别名命中广告库且不在白名单时立即阻断并终止）
+      # 阻断 HTTPS(TYPE65) 防 ECH 逃逸，返回 NODATA
+      - matches: qtype 65
+        exec: reject 0
+      # 私网 PTR 反查阻断，返回 NXDOMAIN，防内网信息外泄
       - matches:
-          - has_resp
-          - cname $geosite_ads
+          - qtype 12
+          - qname $local_ptr
+        exec: reject 3
+      # 广告域名拦截（含 B站 PCDN），返回 NXDOMAIN；白名单域名放行
+      - matches:
+          - qname $geosite_ads
           - "!qname $ad_whitelist"
-        exec: $cname_block_sequence
-      # 智能 TTL 钳位：普通域名收敛在 5分钟~1小时 之间（抑制客户端高频突发重查，提升缓存命中率；白名单/DDNS除外）
-      - matches:
-          - has_resp
-          - "!qname $whitelist"
-        exec: ttl 300-3600
-      - matches: has_resp
-        exec: accept
+        exec: reject 3
 
-  # fallback 用本地服务器 sequence（增加双保险：仅当国内 DNS 返回国内 IP 时才采信，兼顾国内冷门网站直连，严防污染泄露）
+  # 未知域名国内兜底序列（防泄漏铁闸：国内解析结果若非 CN IP 直接丢弃）
   - tag: query_is_local_ip
     type: sequence
     args:
@@ -200,129 +166,73 @@ plugins:
       - matches: "!resp_ip $geoip_cn"
         exec: drop_resp
 
-  # fallback 用远程服务器 sequence
+  # 未知域名远端序列
   - tag: query_is_remote
     type: sequence
     args:
       - exec: $remote_sequence
 
-  # fallback（未知域名：远端优先防泄漏——为海外高并发留足 3000ms 响应窗口，绝不草率切国内；
-  # 仅当 AdGuard+NextDNS 均超时 3.0s 后才由国内阿里兜底，且仅接受 CN IP 应答）
+  # 未知冷门域名兜底：远端加密优先（防泄漏），超时 2.5s 由国内 DoH 兜底
   - tag: fallback
     type: fallback
     args:
       primary: query_is_remote
       secondary: query_is_local_ip
-      threshold: 3000
+      threshold: 2500
       always_standby: false
 
-  # 查询灰名单域名（强制远端，优先级最高）
-  - tag: query_is_greylist_domain
-    type: sequence
-    args:
-      - matches: qname $greylist
-        exec: $remote_sequence
-
-  # 腾讯游戏域名解析：DNSPod 专线 + 阿里并发兜底
-  # 结构说明: fallback 阈值只对"慢"有效, 对 DNSPod 的"秒败"(connection reset)无效,
-  # 故不用 fallback 而用双上游并发: 正常时 DNSPod(腾讯调度最优)先回, 
-  # DNSPod 被重置/超时时段由阿里应答兜住, 任何情况下都有结果
-  - tag: tencent_sequence
-    type: sequence
-    args:
-      - exec: $forward_tencent
-      - matches: "!has_resp"
-        exec: $forward_local
-
-  # 查询腾讯游戏域名（DNSPod DoH 专线优先 + 阿里兜底，优先于普通国内解析）
-  - tag: query_is_tencent_domain
-    type: sequence
-    args:
-      - matches: qname $tencent_games
-        exec: $tencent_sequence
-
-  # 查询白名单域名（强制国内解析，含 DDNS）
-  - tag: query_is_whitelist_domain
-    type: sequence
-    args:
-      - matches: qname $whitelist
-        exec: $local_sequence
-
-  # 查询国外域名（先于国内判断：即使域名同时出现在 cn/!cn 列表也绝不发给国内 DNS）
-  - tag: query_is_no_local_domain
-    type: sequence
-    args:
-      - matches: qname $geosite_no_cn
-        exec: $remote_sequence
-
-  # 查询国内域名
-  - tag: query_is_local_domain
-    type: sequence
-    args:
-      - matches: qname $geosite_cn
-        exec: $local_sequence
-
-  # 本地拒绝项（type65 / 内网探测 / 私网 PTR / 广告）
-  - tag: query_is_reject_domain
-    type: sequence
-    args:
-      # 阻断 HTTPS(TYPE 65) 记录防 ECH 绕过；返回 reject 0 (NOERROR/NODATA)
-      # 避免将正常访问 GitHub/Google/VSCode 的辅助探测误当广告统计进拦截榜
-      - matches: qtype 65
-        exec: reject 0
-      # 阻断 Windows/局域网未定义内网域名（wpad、*.lan、*.local），直接返回 NODATA，避免外发泄露到国外上游
-      - matches:
-          - qname wpad.lan wpad lan local
-        exec: reject 0
-      - matches:
-          - qtype 12
-          - qname $local_ptr
-        exec: reject 3
-      - matches:
-          - qname $geosite_ads
-          - "!qname $ad_whitelist"
-        exec: reject 3
-
-  # 主要的运行逻辑插件
-  # 执行顺序（文章同款，防泄漏优先）：
-  # 统计 -> 拒绝项 -> 缓存 -> 灰名单 -> 白名单 -> 非CN -> CN -> fallback(远端优先)
-  # （拒绝项置于缓存之前，新增拦截域名立即生效，不受旧缓存影响）
+  # 主流水线（线性，去除全部冗余跳转）
   - tag: main_sequence
     type: sequence
     args:
       - exec: $stats_collector
+
+      # 1. 硬拦截：广告 / PCDN / IPv6 / TYPE65 / 私网PTR
       - exec: $query_is_reject_domain
-      - exec: jump has_resp_sequence
-      # 白名单/DDNS 域名跳过缓存直查（TTL 变化频繁，避免拿到过期 IP）
-      - matches: "!qname $whitelist"
-        exec: $lazy_cache
-      - exec: jump has_resp_sequence
-      # 灰名单 -> 强制注册加密 DNS（最高优先级）
-      - exec: $query_is_greylist_domain
-      - exec: jump has_resp_sequence
-      # 腾讯游戏域名 -> DNSPod DoH 专线（加密，修复 pvp.qq.com 解析失败）
-      - exec: $query_is_tencent_domain
-      - exec: jump has_resp_sequence
-      # 白名单 -> 强制国内解析
-      - exec: $query_is_whitelist_domain
-      - exec: jump has_resp_sequence
-      # 国外域名 -> 注册加密 DNS（先于国内判断，防泄漏）
-      - exec: $query_is_no_local_domain
-      - exec: jump has_resp_sequence
-      # 国内域名 -> 国内 DoH 直连
-      - exec: $query_is_local_domain
-      - exec: jump has_resp_sequence
-      # 未匹配域名 -> 远端优先（防泄漏），国内仅兜底
+      - matches: has_resp
+        exec: accept
+
+      # 2. 直连白名单（机场节点/游戏/B站核心 -> 阿里 DoH，跳缓存保鲜）
+      - matches: qname $whitelist
+        exec: $local_sequence
+      - matches: has_resp
+        exec: accept
+
+      # 3. 乐观缓存（毫秒秒回 + 后台异步刷新）
+      - exec: $lazy_cache
+      - matches: has_resp
+        exec: accept
+
+      # 4. 国外域名：AAAA(IPv6) 拒答强制走 IPv4 代理（代理节点多为 v4 出口 / 国外 v6 直连必被墙），
+      #    A 记录走国外加密 DNS（先于国内判断，防泄漏）
+      - matches:
+          - qname $geosite_no_cn
+          - qtype 28
+        exec: reject 0
+      - matches: qname $geosite_no_cn
+        exec: $remote_sequence
+      - matches: has_resp
+        exec: accept
+
+      # 5. 国内域名 -> 阿里双入口 DoH 并发（A + AAAA 均放行，国内 IPv6 直连走 NAT66）
+      - matches: qname $geosite_cn
+        exec: $local_sequence
+      - matches: has_resp
+        exec: accept
+
+      # 6. 未匹配冷门域名：AAAA 拒答（防泄漏，强制走 IPv4 代理），A 记录远端优先兜底
+      - matches: qtype 28
+        exec: reject 0
       - exec: $fallback
 
-  # 启动 udp 服务器。
+  # UDP 服务器
   - tag: udp_server
     type: udp_server
     args:
       entry: main_sequence
       listen: "127.0.0.1:5335"
 
-  # 启动 tcp 服务器。
+  # TCP 服务器
   - tag: tcp_server
     type: tcp_server
     args:

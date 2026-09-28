@@ -235,13 +235,40 @@ for w in $(uci -q show wireless | grep '=wifi-device' | cut -d'.' -f2 | cut -d'=
 	uci -q set wireless.${w}.country='AU'
 done
 
-# 11. Dnsmasq 缓存交由 MosDNS 接管（cachesize=0），仅设置 EDNS0 大小规约
-[ -x /etc/init.d/mosdns ] && uci -q set dhcp.@dnsmasq[0].cachesize='0'
+# 11. Dnsmasq 转发到 MosDNS(5335) 并停用自身缓存（防泄漏：所有 DNS 经 MosDNS 加密上游分流）
+#     自定义配置模式下 sbwml init 不自动设置 dnsmasq 转发，此处手动固化
+[ -x /etc/init.d/mosdns ] && {
+	uci -q set dhcp.@dnsmasq[0].noresolv='1'
+	uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#5335'
+	uci -q add_list dhcp.@dnsmasq[0].server='127.0.0.1#5335'
+	uci -q set dhcp.@dnsmasq[0].cachesize='0'
+	uci -q delete dhcp.@dnsmasq[0].filter_aaaa 2>/dev/null
+}
 uci -q set dhcp.@dnsmasq[0].ednspacket_max='1232'
 uci -q commit dhcp
 
-# 12. 确保 MosDNS 开机自启服务软链接就绪，杜绝冷启动 5335 端口断流
-[ -x /etc/init.d/mosdns ] && /etc/init.d/mosdns enable
+# 12. MosDNS：启用 + 青锋自定义配置（国内直连/国外走代理/国外AAAA拒答防泄漏）
+#     首次开机若缺 geo txt，先用默认模式让 sbwml 从 geosite.dat 生成，复制到持久目录后再切自定义
+if [ -x /etc/init.d/mosdns ]; then
+	/etc/init.d/mosdns enable
+	uci -q set mosdns.config.enabled='1'
+	uci -q set mosdns.config.listen_port='5335'
+	if [ ! -f /etc/mosdns/rule/geosite_cn.txt ]; then
+		uci -q set mosdns.config.configfile='/var/etc/mosdns.json'
+		uci -q commit mosdns
+		/etc/init.d/mosdns restart
+		i=0
+		while [ ! -f /var/mosdns/geosite_cn.txt ] && [ "$i" -lt 40 ]; do sleep 1; i=$((i+1)); done
+		mkdir -p /etc/mosdns/rule
+		cp -f /var/mosdns/geosite_cn.txt /etc/mosdns/rule/geosite_cn.txt 2>/dev/null
+		cp -f /var/mosdns/geoip_cn.txt /etc/mosdns/rule/geoip_cn.txt 2>/dev/null
+		cp -f "/var/mosdns/geosite_geolocation-!cn.txt" /etc/mosdns/rule/geosite_no_cn.txt 2>/dev/null
+	fi
+	# 切到青锋自定义配置并重启生效
+	uci -q set mosdns.config.configfile='/etc/mosdns/config_custom.yaml'
+	uci -q commit mosdns
+	/etc/init.d/mosdns restart
+fi
 
 # 13. IPv6 NAT66 + 策略路由（实测有效方案）
 #     拓扑：光猫 → 酷派(拿 PD 前缀 240e:..:d912::/64，NAT66关闭，原生SLAAC下发)
